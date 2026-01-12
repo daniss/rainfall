@@ -1,0 +1,15 @@
+# Rainfall - Level0 Walkthrough
+
+A single binary is present in `/home/user/level0`. Listing it shows it is owned by `level1`. Copy it locally for analysis:
+
+```bash
+scp -P 4242 level0@{IP}:/home/user/level0/level0 .
+```
+
+Open the binary in Ghidra, locate `main`, and inspect the argument check. When the program is executed with the argument `423`, it first say to identify us as the level1 identity, then it spawns a shell:
+
+```bash
+./level0 423
+```
+
+Use that shell to read `/home/user/level1/.pass`.

@@ -1,0 +1,41 @@
+# Rainfall - Level1 Walkthrough
+
+A single binary is present in `/home/user/level1`. Listing it shows it is owned by `level1`. Copy it locally for analysis:
+
+```bash
+scp -P 4242 level1@{IP}:/home/user/level1/level1 .
+```
+
+**Step 1**  
+Open the binary in Ghidra.
+
+**Step 2**  
+Locate the `main` function. It is not very long, but we see a `gets` call.
+
+**Step 3**  
+Check if there is a known vulnerability in `gets`. It is unsafe because it does not check the length of the input, so we can overflow the buffer.
+
+Goal: We have a buffer of 76 bytes; if we send more than 76 bytes, we will start overwriting things on the stack. The return tells the CPU where to go after the function is done. So we overwrite the return address and make it jump where we want. But where?
+
+I wasted time here because I thought that the return address was after 80 bytes, but it's after 76 bytes + 4 bytes of saved EBP, so it's after 80 bytes. And it's not after the return address that we overwrite, it's the return address itself.
+
+**Step 4**  
+We know we can make `main` return somewhere. We need to find where to jump exactly. If we check in the symbol tree of Ghidra, we can see all the functions. We go through them and find that there is a function called `run`, which runs a shell. We can use gdb to find its address:
+
+```gdb
+(gdb) info functions run
+All functions matching regular expression "run":
+
+Non-debugging symbols:
+0x08048444  run
+```
+
+**Step 5**  
+We have all the information we need to create our exploit. We need to send 80 bytes to overflow the buffer and overwrite the return address with the address of `run` (`0x08048444`). We can use Python to create the payload:
+
+```python
+(python -c "print 'A' * 76 + '\x44\x84\x04\x08'"; cat) | ./level1
+```
+We inverse the address because of little-endian format.
+
+Use that shell to read `/home/user/level2/.pass`.
