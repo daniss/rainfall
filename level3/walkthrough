@@ -1,0 +1,42 @@
+# Rainfall - Level3 Walkthrough
+
+A single binary is present in `/home/user/level3`. Listing it shows it is owned by `level3`. Copy it locally for analysis:
+
+```bash
+scp -P 4242 level3@{IP}:/home/user/level3/level3 .
+```
+
+**Step 1**
+Open the binary in Ghidra.
+
+**Step 2**
+Locate the `main` function. It's calling v(). Go into v() and see what it does.
+
+It use `fgets` to read input into a buffer which is safe compared to `gets` from before.
+
+We also see that their is a 'm' variable that is not set in the function, which mean it's a global variable. So if we can set 'm' to 64, we can pass the check and call the shell function.
+
+Something weird, the printf don't have a specifier %, it just print the variable directly. This is a hint that it's probably a format string vulnerability. We need to check if printf have a identifier to write to an address directly, so maybe we can overwrite the 'm' variable ? It seem to be %n.
+
+**Step 3**
+We find the address of m directly in ghidra, it's 0x0804988c. So "\x8c\x98\x04\x08" in little endian.
+
+We can also find the offset of the format string in the stack. The offset is the number of "positions" on the stack that printf has to skip to reach the start of our input buffer. 
+
+```bash
+./level3
+AAAA %p %p %p %p %p %p %p %p
+AAAA 0x200 0xb7fd1ac0 0xb7ff37d0 0x41414141 0x20702520 0x25207025 0x70252070 0x20702520
+```
+
+So we found that in the fourth position we have our input. So the offset is 4. So we can use %4$n to tell it to get the 4th position and write the number of bytes written until now to that address.
+
+**Step 4**
+Now we need to create the payload. The payload is going to be the address of m + padding + %4$n.
+
+```bash
+(python -c "print '\x8c\x98\x04\x08' + 'A'*60 + '%4\$n'"; cat -) | ./level3
+```
+
+
+Use that shell to read `/home/user/level3/.pass`.
