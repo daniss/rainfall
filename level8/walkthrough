@@ -26,7 +26,7 @@ Breakpoint 1, 0x080486ea in main ()
 0x804a058:	0x00000000	0x00000000	0x00000000	0x00000000
 ...
 
-=> We need auth + 0x20 != 0
+=> We need *(auth + 0x20) != 0
 => auth = 0x804a008
 => auth + 0x20 = 0x804a028
 => We need to write something at 0x804a028
