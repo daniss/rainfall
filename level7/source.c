@@ -1,37 +1,39 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
+/* global variable */
+char *c;
 
-undefined4 main(undefined4 param_1,int param_2)
-
+int main(int argc, char **argv)
 {
-  undefined4 *puVar1;
-  void *pvVar2;
-  undefined4 *puVar3;
-  FILE *__stream;
-  
-  puVar1 = (undefined4 *)malloc(8);
-  *puVar1 = 1;
-  pvVar2 = malloc(8);
-  puVar1[1] = pvVar2;
-  puVar3 = (undefined4 *)malloc(8);
-  *puVar3 = 2;
-  pvVar2 = malloc(8);
-  puVar3[1] = pvVar2;
-  strcpy((char *)puVar1[1],*(char **)(param_2 + 4));
-  strcpy((char *)puVar3[1],*(char **)(param_2 + 8));
-  __stream = fopen("/home/user/level8/.pass","r");
-  fgets(c,0x44,__stream);
-  puts("~~");
-  return 0;
+    int *obj1;
+    int *obj2;
+    FILE *fd;
+
+    obj1 = malloc(8);
+    obj1[0] = 1;
+    obj1[1] = (int)malloc(8);
+
+    obj2 = malloc(8);
+    obj2[0] = 2;
+    obj2[1] = (int)malloc(8);
+
+    strcpy((char *)obj1[1], argv[1]);
+    strcpy((char *)obj2[1], argv[2]);
+
+    fd = fopen("/home/user/level8/.pass", "r");
+    fgets(c, 0x44, fd);
+
+    puts("~~");
+    return 0;
 }
 
-void m(void *param_1,int param_2,char *param_3,int param_4,int param_5)
-
+void m(void *unused, int unused2, char *unused3, int unused4, int unused5)
 {
-  time_t tVar1;
-  
-  tVar1 = time((time_t *)0x0);
-  printf("%s - %d\n",c,tVar1);
-  return;
+    time_t t;
+
+    t = time(NULL);
+    printf("%s - %ld\n", c, t);
 }
