@@ -9,7 +9,11 @@ scp -P 4242 level0@{IP}:/home/user/level0/level0 .
 Open the binary in Ghidra, locate `main`, and inspect the argument check. When the program is executed with the argument `423`, it first say to identify us as the level1 identity, then it spawns a shell:
 
 ```bash
-./level0 423
+level0@RainFall:~$ ./level0 423
+$ whoami
+level1
+$ cat /home/user/level1/.pass
+1fe8a524fa4bec01ca4ea2a869af2a02260d4a7d5fe7e7c24d8617e6dca12d3a
 ```
 
 Use that shell to read `/home/user/level1/.pass`.

